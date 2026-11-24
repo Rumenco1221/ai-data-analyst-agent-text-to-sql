@@ -1,0 +1,81 @@
+# Capa semántica: el "diccionario de negocio" del agente.
+# Define UNA vez qué significa cada métrica, para que la IA (y las personas) no la reinventen en cada pregunta.
+# Para usar el agente con otra base, solo hay que adaptar este archivo.
+
+base_table: "sales f"
+
+joins:
+  stores: "JOIN stores s ON s.store_id = f.store_id"
+  products: "JOIN products p ON p.product_id = f.product_id"
+
+date_column: "f.sale_date"
+
+metrics:
+  ingreso:
+    label: "Ingreso"
+    description: "Ingreso bruto: unidades × precio unitario de venta (ya incluye descuentos)."
+    sql: "ROUND(SUM(f.quantity * f.unit_price), 2)"
+    synonyms: [ingreso, ingresos, venta, ventas, vende, vendio, vendimos, facturacion, facturo, revenue]
+    format: currency
+  unidades:
+    label: "Unidades"
+    description: "Cantidad de unidades vendidas."
+    sql: "SUM(f.quantity)"
+    synonyms: [unidades, cantidad, volumen]
+    format: number
+  transacciones:
+    label: "Transacciones"
+    description: "Cantidad de ventas (líneas de venta)."
+    sql: "COUNT(*)"
+    synonyms: [transacciones, operaciones, cuantas ventas, numero de ventas]
+    format: number
+  ticket_promedio:
+    label: "Ticket promedio"
+    description: "Ingreso promedio por transacción."
+    sql: "ROUND(SUM(f.quantity * f.unit_price) * 1.0 / COUNT(*), 2)"
+    synonyms: [ticket, ticket promedio, promedio por venta, valor promedio]
+    format: currency
+
+dimensions:
+  region:
+    label: "Región"
+    sql: "s.region"
+    join: stores
+    synonyms: [region, regiones, zona, zonas]
+  tienda:
+    label: "Tienda"
+    sql: "s.store_name"
+    join: stores
+    synonyms: [tienda, tiendas, sucursal, sucursales, local, locales]
+  producto:
+    label: "Producto"
+    sql: "p.product_name"
+    join: products
+    synonyms: [producto, productos, articulo, articulos]
+  categoria:
+    label: "Categoría"
+    sql: "p.category"
+    join: products
+    synonyms: [categoria, categorias, rubro, rubros]
+  mes:
+    label: "Mes"
+    sql: "strftime('%Y-%m', f.sale_date)"
+    synonyms: [mes, meses, mensual, mensualmente, evolucion, tendencia, por mes]
+    time: true
+
+business_rules:
+  - "Si la pregunta no nombra una métrica, se usa 'ingreso'."
+  - "Los meses se ordenan cronológicamente; el resto de los rankings, de mayor a menor."
+  - "'Peor', 'menos' o 'menor' invierten el orden del ranking."
+
+# Conceptos que la base NO tiene: el agente debe decir "no lo sé" en lugar de responder otra cosa.
+unsupported:
+  margen: "La base no tiene costos, así que no se puede calcular margen ni ganancia."
+  ganancia: "La base no tiene costos, así que no se puede calcular margen ni ganancia."
+  rentabilidad: "La base no tiene costos, así que no se puede calcular rentabilidad."
+  costo: "La base no registra costos."
+  cliente: "La base no registra clientes."
+  clientes: "La base no registra clientes."
+  stock: "La base no registra inventario."
+  devoluciones: "La base no registra devoluciones."
+  presupuesto: "La base no tiene presupuesto ni metas."

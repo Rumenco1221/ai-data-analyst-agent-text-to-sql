@@ -7,13 +7,13 @@
 from __future__ import annotations
 
 import os
-import re
-import unicodedata
 from typing import Protocol
 
 SYSTEM_PROMPT = """Sos un analista de datos senior. Convertís preguntas de negocio en UNA consulta SQLite de solo lectura.
 Reglas: usá solo las tablas y columnas del esquema; devolvé únicamente el SQL, sin explicación ni ```;
-usá alias legibles; redondeá importes a 2 decimales; ordená los resultados de forma útil."""
+usá alias legibles; redondeá importes a 2 decimales; ordená los resultados de forma útil.
+Usá SIEMPRE las fórmulas de las métricas oficiales de la capa semántica.
+Si la pregunta pide datos que el esquema no tiene, respondé solo: NO_ANSWER: <motivo breve>. Nunca inventes."""
 
 
 class LLMProvider(Protocol):
@@ -39,9 +39,11 @@ def _summary_prompt(question: str, sql: str, rows: list[dict]) -> str:
 class AnthropicProvider:
     name = "anthropic"
 
-    def __init__(self, model: str | None = None):
-        import anthropic  # import diferido: solo si se usa
-        self.client = anthropic.Anthropic()
+    def __init__(self, model: str | None = None, client=None):
+        if client is None:
+            import anthropic  # import diferido: solo si se usa
+            client = anthropic.Anthropic()
+        self.client = client
         self.model = model or os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5-5")
 
     def _ask(self, system: str, user: str) -> str:
@@ -76,51 +78,28 @@ class OpenAIProvider:
         return self._ask("Sos un analista de negocio claro y conciso.", _summary_prompt(question, sql, rows))
 
 
-def _norm(text: str) -> str:
-    return unicodedata.normalize("NFKD", text.lower()).encode("ascii", "ignore").decode()
-
-
 class OfflineProvider:
-    """Motor determinista por intención. No reemplaza a un LLM: sirve para demos, tests y CI sin costo."""
+    """Modo sin IA: compila la pregunta con la capa semántica (métrica × dimensión × filtros × top N).
+
+    No reemplaza a un LLM para preguntas complejas, pero responde gratis, al instante y de forma
+    reproducible las preguntas frecuentes. Ideal para demos, tests y CI.
+    """
     name = "offline"
 
-    INTENTS: list[tuple[str, str]] = [
-        (r"(?=.*(ingreso|venta|factur|vende))(?=.*region)",
-         "SELECT s.region, ROUND(SUM(f.quantity * f.unit_price), 2) AS revenue FROM sales f "
-         "JOIN stores s ON s.store_id = f.store_id GROUP BY s.region ORDER BY revenue DESC"),
-        (r"(?=.*(top|mejores|mas vendid))(?=.*producto)",
-         "SELECT p.product_name, SUM(f.quantity) AS units, ROUND(SUM(f.quantity * f.unit_price), 2) AS revenue "
-         "FROM sales f JOIN products p ON p.product_id = f.product_id GROUP BY p.product_name "
-         "ORDER BY revenue DESC LIMIT 5"),
-        (r"\b(mes|meses|mensual|evolucion|tendencia)\b",
-         "SELECT strftime('%Y-%m', f.sale_date) AS month, ROUND(SUM(f.quantity * f.unit_price), 2) AS revenue "
-         "FROM sales f GROUP BY month ORDER BY month"),
-        (r"(categoria)",
-         "SELECT p.category, ROUND(SUM(f.quantity * f.unit_price), 2) AS revenue FROM sales f "
-         "JOIN products p ON p.product_id = f.product_id GROUP BY p.category ORDER BY revenue DESC"),
-        (r"(ticket|promedio)",
-         "SELECT ROUND(SUM(quantity * unit_price) * 1.0 / COUNT(*), 2) AS avg_ticket FROM sales"),
-        (r"(tienda|sucursal)",
-         "SELECT s.store_name, ROUND(SUM(f.quantity * f.unit_price), 2) AS revenue FROM sales f "
-         "JOIN stores s ON s.store_id = f.store_id GROUP BY s.store_name ORDER BY revenue DESC"),
-        (r"(total|cuanto vendimos|ingreso total)",
-         "SELECT ROUND(SUM(quantity * unit_price), 2) AS total_revenue FROM sales"),
-    ]
+    def __init__(self, semantic=None):
+        self.semantic = semantic
+
+    def use_semantic_layer(self, semantic) -> None:
+        self.semantic = semantic
 
     def generate_sql(self, question, schema, feedback=None):
-        q = _norm(question)
-        for pattern, sql in self.INTENTS:
-            if re.search(pattern, q):
-                return sql
-        raise ValueError("El modo offline no reconoce esta pregunta. Configurá ANTHROPIC_API_KEY u OPENAI_API_KEY.")
+        if self.semantic is None:
+            raise ValueError("El modo offline necesita la capa semántica (semantic_layer.yaml).")
+        return self.semantic.compile(question).sql
 
     def summarize(self, question, sql, rows):
-        if not rows:
-            return "La consulta no devolvió resultados."
-        first = rows[0]
-        parts = ", ".join(f"{k} = {v:,.2f}" if isinstance(v, float) else f"{k} = {v}" for k, v in first.items())
-        extra = f" (y {len(rows) - 1} filas más)" if len(rows) > 1 else ""
-        return f"Resultado principal: {parts}{extra}."
+        from .insights import describe, recommend_chart
+        return " ".join(describe(rows, recommend_chart(rows)))
 
 
 def get_provider(name: str | None = None) -> LLMProvider:

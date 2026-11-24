@@ -8,3 +8,4 @@ venv/
 *.db
 outputs/*
 !outputs/.gitkeep
+evals/last_report.json

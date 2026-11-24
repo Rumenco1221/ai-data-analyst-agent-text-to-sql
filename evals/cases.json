@@ -1,16 +1,62 @@
 [
-  {"question": "¿Cuál es el ingreso total?",
-   "reference_sql": "SELECT ROUND(SUM(quantity*unit_price),2) FROM sales"},
-  {"question": "¿Qué región tiene más ventas?",
-   "reference_sql": "SELECT s.region, ROUND(SUM(f.quantity*f.unit_price),2) r FROM sales f JOIN stores s USING(store_id) GROUP BY 1 ORDER BY r DESC LIMIT 1"},
-  {"question": "Top 5 productos más vendidos",
-   "reference_sql": "SELECT p.product_name, ROUND(SUM(f.quantity*f.unit_price),2) r FROM sales f JOIN products p USING(product_id) GROUP BY 1 ORDER BY r DESC LIMIT 1"},
-  {"question": "¿Cuál es el ticket promedio?",
-   "reference_sql": "SELECT ROUND(SUM(quantity*unit_price)*1.0/COUNT(*),2) FROM sales"},
-  {"question": "Ventas por categoría",
-   "reference_sql": "SELECT p.category, ROUND(SUM(f.quantity*f.unit_price),2) r FROM sales f JOIN products p USING(product_id) GROUP BY 1 ORDER BY r DESC LIMIT 1"},
-  {"question": "Evolución mensual de ventas",
-   "reference_sql": "SELECT strftime('%Y-%m', sale_date) m, ROUND(SUM(quantity*unit_price),2) FROM sales GROUP BY m ORDER BY m LIMIT 1"},
-  {"question": "¿Qué sucursal vende más?",
-   "reference_sql": "SELECT s.store_name, ROUND(SUM(f.quantity*f.unit_price),2) r FROM sales f JOIN stores s USING(store_id) GROUP BY 1 ORDER BY r DESC LIMIT 1"}
+  {
+    "question": "¿Cuál es el ingreso total?",
+    "reference_sql": "SELECT ROUND(SUM(quantity*unit_price),2) FROM sales"
+  },
+  {
+    "question": "¿Qué región tiene más ventas?",
+    "reference_sql": "SELECT s.region, ROUND(SUM(f.quantity*f.unit_price),2) r FROM sales f JOIN stores s USING(store_id) GROUP BY 1 ORDER BY r DESC LIMIT 1"
+  },
+  {
+    "question": "Top 5 productos más vendidos",
+    "reference_sql": "SELECT p.product_name, ROUND(SUM(f.quantity*f.unit_price),2) r FROM sales f JOIN products p USING(product_id) GROUP BY 1 ORDER BY r DESC LIMIT 1"
+  },
+  {
+    "question": "¿Cuál es el ticket promedio?",
+    "reference_sql": "SELECT ROUND(SUM(quantity*unit_price)*1.0/COUNT(*),2) FROM sales"
+  },
+  {
+    "question": "Ventas por categoría",
+    "reference_sql": "SELECT p.category, ROUND(SUM(f.quantity*f.unit_price),2) r FROM sales f JOIN products p USING(product_id) GROUP BY 1 ORDER BY r DESC LIMIT 1"
+  },
+  {
+    "question": "Evolución mensual de ventas",
+    "reference_sql": "SELECT strftime('%Y-%m', sale_date) m, ROUND(SUM(quantity*unit_price),2) FROM sales GROUP BY m ORDER BY m LIMIT 1"
+  },
+  {
+    "question": "¿Qué sucursal vende más?",
+    "reference_sql": "SELECT s.store_name, ROUND(SUM(f.quantity*f.unit_price),2) r FROM sales f JOIN stores s USING(store_id) GROUP BY 1 ORDER BY r DESC LIMIT 1"
+  },
+  {
+    "question": "¿Cuántas ventas hubo en marzo?",
+    "reference_sql": "SELECT COUNT(*) FROM sales WHERE strftime('%m', sale_date)='03'"
+  },
+  {
+    "question": "Unidades vendidas por región",
+    "reference_sql": "SELECT s.region, SUM(f.quantity) u FROM sales f JOIN stores s USING(store_id) GROUP BY 1 ORDER BY u DESC LIMIT 1"
+  },
+  {
+    "question": "Top 3 productos de Tecnología en CABA",
+    "reference_sql": "SELECT p.product_name, ROUND(SUM(f.quantity*f.unit_price),2) r FROM sales f JOIN products p USING(product_id) JOIN stores s USING(store_id) WHERE s.region='CABA' AND p.category='Tecnología' GROUP BY 1 ORDER BY r DESC LIMIT 1"
+  },
+  {
+    "question": "¿Qué categoría vende menos?",
+    "reference_sql": "SELECT p.category, ROUND(SUM(f.quantity*f.unit_price),2) r FROM sales f JOIN products p USING(product_id) GROUP BY 1 ORDER BY r ASC LIMIT 1"
+  },
+  {
+    "question": "Ticket promedio por sucursal en junio",
+    "reference_sql": "SELECT s.store_name, ROUND(SUM(f.quantity*f.unit_price)*1.0/COUNT(*),2) t FROM sales f JOIN stores s USING(store_id) WHERE strftime('%m', f.sale_date)='06' GROUP BY 1 ORDER BY t DESC LIMIT 1"
+  },
+  {
+    "question": "Facturación de la región Cuyo",
+    "reference_sql": "SELECT s.region, ROUND(SUM(f.quantity*f.unit_price),2) FROM sales f JOIN stores s USING(store_id) WHERE s.region='Cuyo' GROUP BY 1"
+  },
+  {
+    "question": "Evolución mensual de unidades de la Bicicleta",
+    "reference_sql": "SELECT strftime('%Y-%m', f.sale_date) m, SUM(f.quantity) FROM sales f JOIN products p USING(product_id) WHERE p.product_name='Bicicleta' GROUP BY m ORDER BY m LIMIT 1"
+  },
+  {
+    "question": "Peores 2 tiendas por ingreso",
+    "reference_sql": "SELECT s.store_name, ROUND(SUM(f.quantity*f.unit_price),2) r FROM sales f JOIN stores s USING(store_id) GROUP BY 1 ORDER BY r ASC LIMIT 1"
+  }
 ]
