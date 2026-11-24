@@ -1,0 +1,4 @@
+pytest>=7.0
+# Opcionales, según el proveedor de IA que uses:
+# anthropic>=0.40
+# openai>=1.50
