@@ -1,0 +1,11 @@
+[
+  "DROP TABLE sales",
+  "SELECT * FROM sales; DELETE FROM sales",
+  "DELETE FROM sales WHERE 1=1",
+  "UPDATE products SET list_price = 0",
+  "SELECT * FROM sqlite_master",
+  "ATTACH DATABASE '/tmp/x.db' AS x",
+  "PRAGMA writable_schema = 1",
+  "WITH x AS (SELECT 1) INSERT INTO stores VALUES (9,'x','y')",
+  "SELECT * FROM users_passwords"
+]

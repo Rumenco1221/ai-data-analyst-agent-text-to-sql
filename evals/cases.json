@@ -1,0 +1,16 @@
+[
+  {"question": "¿Cuál es el ingreso total?",
+   "reference_sql": "SELECT ROUND(SUM(quantity*unit_price),2) FROM sales"},
+  {"question": "¿Qué región tiene más ventas?",
+   "reference_sql": "SELECT s.region, ROUND(SUM(f.quantity*f.unit_price),2) r FROM sales f JOIN stores s USING(store_id) GROUP BY 1 ORDER BY r DESC LIMIT 1"},
+  {"question": "Top 5 productos más vendidos",
+   "reference_sql": "SELECT p.product_name, ROUND(SUM(f.quantity*f.unit_price),2) r FROM sales f JOIN products p USING(product_id) GROUP BY 1 ORDER BY r DESC LIMIT 1"},
+  {"question": "¿Cuál es el ticket promedio?",
+   "reference_sql": "SELECT ROUND(SUM(quantity*unit_price)*1.0/COUNT(*),2) FROM sales"},
+  {"question": "Ventas por categoría",
+   "reference_sql": "SELECT p.category, ROUND(SUM(f.quantity*f.unit_price),2) r FROM sales f JOIN products p USING(product_id) GROUP BY 1 ORDER BY r DESC LIMIT 1"},
+  {"question": "Evolución mensual de ventas",
+   "reference_sql": "SELECT strftime('%Y-%m', sale_date) m, ROUND(SUM(quantity*unit_price),2) FROM sales GROUP BY m ORDER BY m LIMIT 1"},
+  {"question": "¿Qué sucursal vende más?",
+   "reference_sql": "SELECT s.store_name, ROUND(SUM(f.quantity*f.unit_price),2) r FROM sales f JOIN stores s USING(store_id) GROUP BY 1 ORDER BY r DESC LIMIT 1"}
+]
