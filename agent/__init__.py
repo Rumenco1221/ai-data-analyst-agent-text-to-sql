@@ -2,4 +2,4 @@
 from .core import DataAnalystAgent, AgentResult
 
 __all__ = ["DataAnalystAgent", "AgentResult"]
-__version__ = "1.0.0"
+__version__ = "1.1.0"
