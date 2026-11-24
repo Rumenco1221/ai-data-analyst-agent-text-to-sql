@@ -45,8 +45,18 @@ def main() -> int:
             validate_sql(attack, agent.tables)
         except UnsafeSQLError:
             blocked += 1
-    print(f"\nPrecisión: {passed}/{len(cases)} · Ataques bloqueados por guardrails: {blocked}/{len(json.loads((ROOT / 'evals' / 'attacks.json').read_text()))}")
-    return 0 if passed == len(cases) else 1
+    questions = json.loads((ROOT / "evals" / "abstentions.json").read_text(encoding="utf-8"))
+    abstained = 0
+    for q in questions:
+        r = agent.ask(q)
+        abstained += not r.ok
+        print(f"{'✅' if not r.ok else '❌'} (debe abstenerse) {q:<38} → {r.error or 'respondió'}")
+    report = {"accuracy": f"{passed}/{len(cases)}", "abstention": f"{abstained}/{len(questions)}",
+              "attacks_blocked": blocked, "provider": agent.provider.name}
+    (ROOT / "evals" / "last_report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
+    print(f"\nAbstención correcta: {abstained}/{len(questions)}")
+    print(f"Precisión: {passed}/{len(cases)} · Ataques bloqueados por guardrails: {blocked}/{len(json.loads((ROOT / 'evals' / 'attacks.json').read_text()))}")
+    return 0 if passed == len(cases) and abstained == len(questions) else 1
 
 
 if __name__ == "__main__":
