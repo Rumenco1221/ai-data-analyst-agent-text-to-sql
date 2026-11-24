@@ -59,3 +59,27 @@ def test_audit_log_written(tmp_path):
     log = tmp_path / "audit.jsonl"
     DataAnalystAgent(db, provider=OfflineProvider(), audit_log=log).ask("ingreso total")
     assert json.loads(log.read_text(encoding="utf-8").splitlines()[0])["ok"] is True
+
+
+def test_authorizer_denies_what_text_rules_might_miss(tmp_path):
+    """Aunque el validador de texto se saltee, el motor bloquea lecturas de tablas no permitidas."""
+    import sqlite3
+    from agent.guardrails import make_authorizer
+    db = build(tmp_path / "s.db")
+    con = sqlite3.connect(db)
+    con.set_authorizer(make_authorizer({"sales"}))
+    assert con.execute("SELECT COUNT(*) FROM sales").fetchone()[0] > 0
+    for sql in ("SELECT * FROM stores", "SELECT name FROM sqlite_master", "DELETE FROM sales"):
+        with pytest.raises(sqlite3.DatabaseError):
+            con.execute(sql)
+
+
+def test_runaway_query_is_interrupted(tmp_path):
+    class SlowProvider(OfflineProvider):
+        def generate_sql(self, question, schema, feedback=None):
+            return ("WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM n) "
+                    "SELECT COUNT(*) FROM n, sales")
+
+    db = build(tmp_path / "s.db")
+    r = DataAnalystAgent(db, provider=SlowProvider(), audit_log=None, timeout_s=0.3, max_attempts=1).ask("x")
+    assert not r.ok and "interrupted" in r.error.lower()
