@@ -7,7 +7,7 @@ import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from .guardrails import UnsafeSQLError, validate_sql
+from .guardrails import UnsafeSQLError, cte_names, make_authorizer, validate_sql
 from .llm import LLMProvider, get_provider
 
 
@@ -26,10 +26,12 @@ class AgentResult:
 
 class DataAnalystAgent:
     def __init__(self, db_path: str | Path, provider: LLMProvider | None = None,
-                 max_attempts: int = 3, audit_log: str | Path | None = "audit_log.jsonl"):
+                 max_attempts: int = 3, audit_log: str | Path | None = "audit_log.jsonl",
+                 timeout_s: float = 5.0):
         self.db_path = Path(db_path)
         self.provider = provider or get_provider()
         self.max_attempts = max_attempts
+        self.timeout_s = timeout_s
         self.audit_log = Path(audit_log) if audit_log else None
         self.tables, self.schema = self._introspect()
 
@@ -37,6 +39,14 @@ class DataAnalystAgent:
         # Conexión de SOLO LECTURA a nivel motor: segunda línea de defensa además de los guardrails.
         con = sqlite3.connect(f"file:{self.db_path}?mode=ro", uri=True)
         con.row_factory = sqlite3.Row
+        return con
+
+    def _query_connection(self, sql: str) -> sqlite3.Connection:
+        """Conexión para ejecutar SQL generado por la IA: solo lectura + autorizador + tiempo límite."""
+        con = self._connect()
+        con.set_authorizer(make_authorizer(self.tables, cte_names(sql)))
+        deadline = time.perf_counter() + self.timeout_s
+        con.set_progress_handler(lambda: 1 if time.perf_counter() > deadline else 0, 10_000)
         return con
 
     def _introspect(self) -> tuple[set[str], str]:
@@ -58,7 +68,7 @@ class DataAnalystAgent:
             try:
                 raw_sql = self.provider.generate_sql(question, self.schema, feedback)
                 result.sql = validate_sql(raw_sql, self.tables)
-                with self._connect() as con:
+                with self._query_connection(result.sql) as con:
                     result.rows = [dict(r) for r in con.execute(result.sql).fetchall()]
                 result.answer = self.provider.summarize(question, result.sql, result.rows)
                 result.ok, result.error = True, None
