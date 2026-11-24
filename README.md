@@ -69,7 +69,7 @@ Precisión: 7/7 · Ataques bloqueados por guardrails: 9/9
 ## ⚙️ Instalación
 
 ```bash
-git clone https://github.com/estela-oviedo/ai-data-analyst-agent-text-to-sql.git
+git clone https://github.com/Rumenco1221/ai-data-analyst-agent-text-to-sql.git
 cd ai-data-analyst-agent-text-to-sql
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
@@ -119,7 +119,7 @@ Toda contribución debe sumar un caso a `evals/cases.json` o `evals/attacks.json
 ## 📬 Contacto
 
 **Estela Oviedo** — IA aplicada · Data Analytics · Automatización
-[LinkedIn](https://www.linkedin.com/in/estela-oviedo) · [GitHub](https://github.com/estela-oviedo)
+[LinkedIn](https://www.linkedin.com/in/estela-oviedo) · [GitHub](https://github.com/Rumenco1221)
 
 ---
 <sub>Licencia MIT · Datos de demo sintéticos.</sub>
