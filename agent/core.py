@@ -8,7 +8,9 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from .guardrails import UnsafeSQLError, cte_names, make_authorizer, validate_sql
+from .insights import describe, recommend_chart
 from .llm import LLMProvider, get_provider
+from .semantic import DEFAULT_PATH, SemanticLayer
 
 
 @dataclass
@@ -22,18 +24,27 @@ class AgentResult:
     error: str | None = None
     provider: str = ""
     latency_ms: int = 0
+    chart: dict = field(default_factory=dict)
+    insights: list[str] = field(default_factory=list)
 
 
 class DataAnalystAgent:
     def __init__(self, db_path: str | Path, provider: LLMProvider | None = None,
                  max_attempts: int = 3, audit_log: str | Path | None = "audit_log.jsonl",
-                 timeout_s: float = 5.0):
+                 timeout_s: float = 5.0, semantic_layer: str | Path | None = DEFAULT_PATH):
         self.db_path = Path(db_path)
         self.provider = provider or get_provider()
         self.max_attempts = max_attempts
         self.timeout_s = timeout_s
         self.audit_log = Path(audit_log) if audit_log else None
         self.tables, self.schema = self._introspect()
+        self.semantic = None
+        if semantic_layer and Path(semantic_layer).exists():
+            with self._connect() as con:
+                self.semantic = SemanticLayer(semantic_layer).bind(con)
+            self.schema += "\n\n" + self.semantic.describe()
+        if self.semantic is not None and hasattr(self.provider, "use_semantic_layer"):
+            self.provider.use_semantic_layer(self.semantic)
 
     def _connect(self) -> sqlite3.Connection:
         # Conexión de SOLO LECTURA a nivel motor: segunda línea de defensa además de los guardrails.
@@ -67,9 +78,14 @@ class DataAnalystAgent:
             result.attempts = attempt
             try:
                 raw_sql = self.provider.generate_sql(question, self.schema, feedback)
+                if raw_sql.strip().upper().startswith("NO_ANSWER"):
+                    raise ValueError(raw_sql.split(":", 1)[-1].strip() or "Los datos no permiten responder.")
+                raw_sql = raw_sql.strip().removeprefix("```sql").removeprefix("```").removesuffix("```")
                 result.sql = validate_sql(raw_sql, self.tables)
                 with self._query_connection(result.sql) as con:
                     result.rows = [dict(r) for r in con.execute(result.sql).fetchall()]
+                result.chart = recommend_chart(result.rows)
+                result.insights = describe(result.rows, result.chart)
                 result.answer = self.provider.summarize(question, result.sql, result.rows)
                 result.ok, result.error = True, None
                 break
@@ -87,5 +103,6 @@ class DataAnalystAgent:
         if not self.audit_log:
             return
         record = asdict(result) | {"rows": len(result.rows), "ts": time.strftime("%Y-%m-%dT%H:%M:%S")}
+        record.pop("insights", None)
         with self.audit_log.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(record, ensure_ascii=False) + "\n")
