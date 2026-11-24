@@ -135,7 +135,7 @@ Toda contribución debe sumar un caso a `evals/cases.json` o `evals/attacks.json
 ## 📬 Contacto
 
 **Estela Oviedo** — IA aplicada · Data Analytics · Automatización
-[LinkedIn](https://www.linkedin.com/in/estela-oviedo) · [GitHub](https://github.com/Rumenco1221)
+[LinkedIn](https://www.linkedin.com/in/estela-oviedo-cortez-796303228) · [GitHub](https://github.com/Rumenco1221)
 
 ---
 <sub>Licencia MIT · Datos de demo sintéticos.</sub>
