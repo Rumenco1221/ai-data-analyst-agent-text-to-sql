@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Data Analyst Agent</title>
+<link rel="icon" href="data:,">
+<style>
+  :root { --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --bg:#f8fafc; --brand:#1e3a8a; --accent:#0ea5e9; --ok:#16a34a; --bad:#dc2626;
+          font-family: "Segoe UI", system-ui, sans-serif; color: var(--ink); background: var(--bg); }
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  header { background: var(--brand); color: #fff; padding: 1.6rem 1.5rem 4.5rem; }
+  header .wrap, main { max-width: 980px; margin: auto; }
+  header h1 { margin: 0 0 .3rem; font-size: 1.6rem; }
+  header p { margin: 0; opacity: .85; }
+  main { padding: 0 1.5rem 3rem; margin-top: -3.2rem; }
+  .ask { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 1rem; box-shadow: 0 10px 30px -15px rgba(15,23,42,.3); }
+  form { display: flex; gap: .6rem; }
+  input { flex: 1; font: inherit; font-size: 1.05rem; padding: .8rem 1rem; border: 1px solid var(--line); border-radius: 10px; }
+  input:focus { outline: 2px solid var(--accent); border-color: transparent; }
+  button { font: inherit; border: 0; border-radius: 10px; padding: .8rem 1.3rem; background: var(--brand); color: #fff; font-weight: 600; cursor: pointer; }
+  button:disabled { opacity: .6; cursor: wait; }
+  .chips { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .8rem; }
+  .chips button { background: var(--bg); color: var(--ink); border: 1px solid var(--line); padding: .35rem .8rem; font-weight: 400; font-size: .88rem; border-radius: 999px; }
+  .card { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 1.2rem 1.3rem; margin-top: 1rem; }
+  .answer { font-size: 1.1rem; line-height: 1.55; }
+  .meta { color: var(--muted); font-size: .82rem; margin-top: .6rem; }
+  .error { border-left: 4px solid var(--bad); }
+  .kpi { font-size: 2.6rem; font-weight: 700; color: var(--brand); }
+  details summary { cursor: pointer; color: var(--brand); font-weight: 600; }
+  pre { background: #0f172a; color: #e2e8f0; padding: 1rem; border-radius: 10px; overflow-x: auto; font-size: .85rem; white-space: pre-wrap; }
+  table { border-collapse: collapse; width: 100%; font-size: .9rem; margin-top: .8rem; }
+  th, td { text-align: left; padding: .45rem .6rem; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  svg text { font-family: inherit; }
+  .grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 1rem; }
+  @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } form { flex-direction: column; } }
+  footer { text-align: center; color: var(--muted); font-size: .8rem; padding: 2rem; }
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <h1>AI Data Analyst Agent</h1>
+  <p>Preguntale a tus datos en español. SQL de solo lectura, validado, auditado y explicado.</p>
+</div></header>
+<main>
+  <section class="ask" aria-label="Pregunta">
+    <form id="form">
+      <label for="q" class="sr" hidden>Pregunta</label>
+      <input id="q" maxlength="300" autocomplete="off" placeholder="Ej.: Top 3 productos de Tecnología en CABA" required>
+      <button id="go" type="submit">Preguntar</button>
+    </form>
+    <div class="chips" id="chips"></div>
+  </section>
+  <div id="out" aria-live="polite"></div>
+</main>
+<footer>Estela Oviedo · AI Data Analyst Agent · <span id="prov"></span></footer>
+<script>
+const EXAMPLES = ["¿Qué región tiene más ventas?", "Evolución mensual de ventas", "Top 3 productos de Tecnología en CABA",
+  "Ticket promedio por sucursal en junio", "¿Qué categoría vende menos?", "¿Cuál es el margen por categoría?"];
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmt = (v) => typeof v === "number" ? v.toLocaleString("es-AR", {maximumFractionDigits: 2}) : esc(v);
+
+$("chips").innerHTML = EXAMPLES.map((e) => `<button type="button">${esc(e)}</button>`).join("");
+$("chips").addEventListener("click", (e) => { if (e.target.tagName === "BUTTON") { $("q").value = e.target.textContent; ask(); } });
+$("form").addEventListener("submit", (e) => { e.preventDefault(); ask(); });
+fetch("/api/health").then((r) => r.json()).then((h) => { $("prov").textContent = "proveedor: " + h.provider; });
+
+function chart(c, rows) {
+  if (!rows.length || !["bar", "line"].includes(c.type)) return "";
+  const W = 560, H = 280, P = {l: 110, r: 20, t: 16, b: 40};
+  const ys = rows.map((r) => r[c.y]), max = Math.max(...ys) || 1;
+  if (c.type === "bar") {
+    const bh = Math.min(28, (H - P.t - P.b) / rows.length - 6);
+    return `<svg viewBox="0 0 ${W} ${rows.length * (bh + 6) + 30}" role="img" aria-label="Gráfico de barras">` + rows.map((r, i) => {
+      const w = (W - P.l - P.r - 80) * r[c.y] / max, y = 10 + i * (bh + 6);
+      return `<text x="${P.l - 8}" y="${y + bh * .7}" text-anchor="end" font-size="12" fill="#334155">${esc(r[c.x])}</text>
+        <rect x="${P.l}" y="${y}" width="${w}" height="${bh}" rx="4" fill="#1e3a8a"/>
+        <text x="${P.l + w + 6}" y="${y + bh * .7}" font-size="11" fill="#64748b">${fmt(r[c.y])}</text>`;
+    }).join("") + "</svg>";
+  }
+  const min = Math.min(...ys), span = (max - min) || 1, step = (W - 60) / Math.max(rows.length - 1, 1);
+  const pts = rows.map((r, i) => [40 + i * step, P.t + (H - P.t - P.b) * (1 - (r[c.y] - min) / span)]);
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Gráfico de línea">
+    <polyline fill="none" stroke="#1e3a8a" stroke-width="2.5" points="${pts.map((p) => p.join(",")).join(" ")}"/>` +
+    pts.map((p, i) => `<circle cx="${p[0]}" cy="${p[1]}" r="3.5" fill="#0ea5e9"><title>${esc(rows[i][c.x])}: ${fmt(rows[i][c.y])}</title></circle>
+      ${i % Math.ceil(rows.length / 8) === 0 ? `<text x="${p[0]}" y="${H - 14}" text-anchor="middle" font-size="11" fill="#64748b">${esc(rows[i][c.x])}</text>` : ""}`).join("") + "</svg>";
+}
+
+function table(rows) {
+  if (!rows.length) return "";
+  const cols = Object.keys(rows[0]);
+  return `<table><thead><tr>${cols.map((c) => `<th>${esc(c)}</th>`).join("")}</tr></thead><tbody>` +
+    rows.slice(0, 50).map((r) => `<tr>${cols.map((c) => `<td class="${typeof r[c] === "number" ? "num" : ""}">${fmt(r[c])}</td>`).join("")}</tr>`).join("") +
+    "</tbody></table>";
+}
+
+async function ask() {
+  const question = $("q").value.trim();
+  if (!question) return;
+  $("go").disabled = true; $("out").innerHTML = `<div class="card meta">Pensando…</div>`;
+  try {
+    const res = await fetch("/api/ask", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({question})});
+    const r = await res.json();
+    if (!r.ok) {
+      $("out").innerHTML = `<div class="card error"><div class="answer">${esc(r.error || "No pude responder.")}</div></div>`;
+      return;
+    }
+    const kpi = r.chart.type === "kpi" ? `<div class="kpi">${fmt(r.rows[0][r.chart.y])}</div>` : "";
+    $("out").innerHTML = `
+      <div class="card"><div class="answer">${kpi}${esc(r.answer)}</div>
+        <div class="meta">${r.attempts} intento(s) · ${r.latency_ms} ms · ${esc(r.provider)} · ${r.rows.length} fila(s)</div></div>
+      <div class="grid">
+        <div class="card">${chart(r.chart, r.rows) || table(r.rows)}</div>
+        <div class="card"><details open><summary>SQL ejecutado</summary><pre>${esc(r.sql)}</pre></details>${r.chart.type !== "kpi" ? table(r.rows) : ""}</div>
+      </div>`;
+  } catch (e) {
+    $("out").innerHTML = `<div class="card error">Error de conexión con el servidor.</div>`;
+  } finally { $("go").disabled = false; }
+}
+</script>
+</body>
+</html>
